@@ -3,5 +3,3 @@ async function main() {
 }
 
 main();
-    await prisma.$disconnect();
-  });

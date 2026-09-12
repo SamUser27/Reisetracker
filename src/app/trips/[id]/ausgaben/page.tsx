@@ -152,7 +152,7 @@ export default async function TripExpensesPage({
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium truncate">{expense.description}</span>
                   <span className="badge" style={{ background: "var(--surface-1)", color: "var(--text-secondary)" }}>
-                    {EXPENSE_CATEGORY_LABELS[expense.category]}
+                    {EXPENSE_CATEGORY_LABELS[expense.category as keyof typeof EXPENSE_CATEGORY_LABELS] ?? expense.category}
                   </span>
                 </div>
                 <span className="text-sm text-[var(--text-muted)]">
