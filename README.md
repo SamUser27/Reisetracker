@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Reise-Tracker
 
-## Getting Started
+Eigene App für unsere Reisen: Übersicht, Kosten mit Aufteilung, Tagesplanung
+und wichtige Infos (Notfallnummern, Gepäck etc.) — als Ablösung für Notion.
 
-First, run the development server:
+## Tech-Stack
+
+- **Next.js 16** (App Router) + TypeScript + Server Actions
+- **Prisma ORM** mit **SQLite** (lokale Datei, kein externer Dienst nötig)
+- **Tailwind CSS v4** mit eigenem, warmem Reise-Design
+
+## Setup
 
 ```bash
+npm install
+npx prisma migrate dev   # legt prisma/dev.db an und wendet das Schema an
+npx prisma db seed       # legt Samu & Luisa als Personen an
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Die App läuft dann unter [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Dauerhafter Hintergrunddienst (macOS)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Die App läuft als **LaunchAgent** dauerhaft im Hintergrund — startet automatisch
+bei jeder Anmeldung und bei einem Absturz neu, kein manuelles `npm run dev` mehr
+nötig. Läuft im Produktions-Modus (`npm run build` + `npm run start`).
 
-## Learn More
+- Konfiguration: `~/Library/LaunchAgents/com.samuelbauch.reisetracker.plist`
+- Logs: `logs/out.log`, `logs/error.log`
+- **Nach Code-Änderungen neu bauen + neu starten**: `./scripts/redeploy.sh`
+- Dienst manuell stoppen: `launchctl unload ~/Library/LaunchAgents/com.samuelbauch.reisetracker.plist`
+- Dienst manuell starten: `launchctl load -w ~/Library/LaunchAgents/com.samuelbauch.reisetracker.plist`
+- Status prüfen: `launchctl list | grep reisetracker`
 
-To learn more about Next.js, take a look at the following resources:
+## Wo liegen die Daten?
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Datenbank**: `prisma/dev.db` (SQLite-Datei, liegt nur auf diesem Rechner)
+- **Titelbilder**: `public/uploads/`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Beides ist in `.gitignore` ausgeschlossen. **Da alles nur lokal liegt,
+empfiehlt sich ein gelegentliches Backup** (z. B. Time Machine, oder die
+Datei/den Ordner manuell kopieren) — bis zum Umzug in die Cloud (siehe unten)
+gibt es sonst keine Absicherung gegen Datenverlust.
 
-## Deploy on Vercel
+## Umzug in die Cloud (später)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Die Architektur ist bewusst so gebaut, dass dieser Schritt klein bleibt:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Datenbank**: In `prisma/schema.prisma` den Provider von `sqlite` auf
+   `postgresql` ändern, einen gehosteten Postgres anlegen (z. B. Neon,
+   Supabase oder Vercel Postgres), `DATABASE_URL` in `.env` setzen und
+   `npx prisma migrate deploy` laufen lassen. Der komplette Anwendungscode
+   (Server Actions, Queries) bleibt unverändert, da er nur über Prisma auf
+   die Datenbank zugreift.
+2. **Bilder**: Nur `src/lib/storage.ts` muss angepasst werden — `saveImage`
+   und `deleteImage` schreiben aktuell lokal nach `public/uploads`. Für die
+   Cloud dort auf einen Objekt-Storage-Client umstellen (z. B. Vercel Blob).
+3. **Deployment**: z. B. auf Vercel deployen (passt direkt zu Next.js).
+
+## Funktionen
+
+- **Übersicht** (`/`): alle Reisen mit Titelbild, Zeitraum, Dauer und
+  Gesamtkosten
+- **Reise-Detail** (`/trips/[id]`) mit vier Tabs:
+  - **Übersicht**: Notizen, Kosten nach Kategorie
+  - **Ausgaben**: Ausgaben erfassen (Datum, Betrag, Kategorie, bezahlt von,
+    gilt für wen), automatischer Schulden-Ausgleich ("X schuldet Y Z €")
+  - **Planung**: Tag-für-Tag-Übersicht mit Unterkunft und Aktivitäten
+  - **Infos**: Notfallnummern, Gepäck, Dokumente, Sonstiges
+
+Personen (z. B. weitere Mitreisende) lassen sich beim Anlegen/Bearbeiten
+einer Reise direkt hinzufügen — die App ist nicht auf zwei Personen fixiert.

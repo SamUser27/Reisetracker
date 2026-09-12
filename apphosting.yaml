@@ -1,0 +1,9 @@
+# Firebase App Hosting Configuration
+kind: AppHostingConfig
+schemaVersion: v1
+serviceMesh: []
+env:
+  - variable: FIREBASE_PROJECT_ID
+    value: "reisetracker-97e00"
+  - variable: FIREBASE_CLIENT_EMAIL
+    value: "firebase-adminsdk-fbsvc@reisetracker-97e00.iam.gserviceaccount.com"
