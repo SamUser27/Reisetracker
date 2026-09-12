@@ -85,23 +85,31 @@ function toDate(val: unknown): Date {
 
 // --- PEOPLE ---
 export async function getPeople(): Promise<PersonDoc[]> {
-  const snapshot = await db.collection("people").orderBy("createdAt", "asc").get();
-  if (snapshot.empty) {
-    // Auto-Seed Standard-Personen falls noch keine existieren
-    const p1 = await createPerson("Lisa");
-    const p2 = await createPerson("Samuel");
-    return [p1, p2];
-  }
+  try {
+    const snapshot = await db.collection("people").orderBy("createdAt", "asc").get();
+    if (snapshot.empty) {
+      // Auto-Seed Standard-Personen falls noch keine existieren
+      const p1 = await createPerson("Lisa");
+      const p2 = await createPerson("Samuel");
+      return [p1, p2];
+    }
 
-  return snapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      name: data.name ?? "",
-      colorTag: data.colorTag ?? "#3b82f6",
-      createdAt: data.createdAt ?? new Date().toISOString(),
-    };
-  });
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name ?? "",
+        colorTag: data.colorTag ?? "#3b82f6",
+        createdAt: data.createdAt ?? new Date().toISOString(),
+      };
+    });
+  } catch (err) {
+    console.error("Error in getPeople():", err);
+    return [
+      { id: "p1", name: "Lisa", colorTag: "#c05a34", createdAt: new Date().toISOString() },
+      { id: "p2", name: "Samuel", colorTag: "#2f6f6a", createdAt: new Date().toISOString() },
+    ];
+  }
 }
 
 export async function createPerson(name: string): Promise<PersonDoc> {
@@ -120,95 +128,105 @@ export async function createPerson(name: string): Promise<PersonDoc> {
 
 // --- TRIPS ---
 export async function getTrips(): Promise<TripDoc[]> {
-  const [peopleList, tripsSnapshot] = await Promise.all([
-    getPeople(),
-    db.collection("trips").get(),
-  ]);
+  try {
+    const [peopleList, tripsSnapshot] = await Promise.all([
+      getPeople(),
+      db.collection("trips").get(),
+    ]);
 
-  const peopleMap = new Map(peopleList.map((p) => [p.id, p]));
+    const peopleMap = new Map(peopleList.map((p) => [p.id, p]));
 
-  const trips = await Promise.all(
-    tripsSnapshot.docs.map(async (doc) => {
-      const data = doc.data();
-      const participantIds: string[] = data.participantIds ?? [];
-      const participants = participantIds
-        .map((pId) => peopleMap.get(pId))
-        .filter((p): p is PersonDoc => Boolean(p))
-        .map((p) => ({ personId: p.id, person: p }));
+    const trips = await Promise.all(
+      tripsSnapshot.docs.map(async (doc) => {
+        const data = doc.data();
+        const participantIds: string[] = data.participantIds ?? [];
+        const participants = participantIds
+          .map((pId) => peopleMap.get(pId))
+          .filter((p): p is PersonDoc => Boolean(p))
+          .map((p) => ({ personId: p.id, person: p }));
 
-      // Fetch expenses minimal
-      const expensesSnapshot = await db
-        .collection("trips")
-        .doc(doc.id)
-        .collection("expenses")
-        .get();
+        // Fetch expenses minimal
+        const expensesSnapshot = await db
+          .collection("trips")
+          .doc(doc.id)
+          .collection("expenses")
+          .get();
 
-      const expenses = expensesSnapshot.docs.map((eDoc) => ({
-        id: eDoc.id,
-        amount: Number(eDoc.data().amount ?? 0),
-      }));
+        const expenses = expensesSnapshot.docs.map((eDoc) => ({
+          id: eDoc.id,
+          amount: Number(eDoc.data().amount ?? 0),
+        }));
 
-      return {
-        id: doc.id,
-        title: data.title ?? "",
-        destination: data.destination ?? "",
-        startDate: toDate(data.startDate),
-        endDate: toDate(data.endDate),
-        coverImagePath: data.coverImagePath ?? null,
-        notes: data.notes ?? null,
-        createdAt: data.createdAt ?? new Date().toISOString(),
-        updatedAt: data.updatedAt ?? new Date().toISOString(),
-        participantIds,
-        participants,
-        expenses,
-      };
-    })
-  );
+        return {
+          id: doc.id,
+          title: data.title ?? "",
+          destination: data.destination ?? "",
+          startDate: toDate(data.startDate),
+          endDate: toDate(data.endDate),
+          coverImagePath: data.coverImagePath ?? null,
+          notes: data.notes ?? null,
+          createdAt: data.createdAt ?? new Date().toISOString(),
+          updatedAt: data.updatedAt ?? new Date().toISOString(),
+          participantIds,
+          participants,
+          expenses,
+        };
+      })
+    );
 
-  return trips.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+    return trips.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+  } catch (err) {
+    console.error("Error in getTrips():", err);
+    return [];
+  }
 }
 
 export async function getTripById(tripId: string): Promise<TripDoc | null> {
-  const [doc, peopleList] = await Promise.all([
-    db.collection("trips").doc(tripId).get(),
-    getPeople(),
-  ]);
+  try {
+    const [doc, peopleList] = await Promise.all([
+      db.collection("trips").doc(tripId).get(),
+      getPeople(),
+    ]);
 
-  if (!doc.exists) return null;
-  const data = doc.data()!;
-  const peopleMap = new Map(peopleList.map((p) => [p.id, p]));
+    if (!doc.exists) return null;
+    const data = doc.data()!;
+    const peopleMap = new Map(peopleList.map((p) => [p.id, p]));
 
-  const participantIds: string[] = data.participantIds ?? [];
-  const participants = participantIds
-    .map((pId) => peopleMap.get(pId))
-    .filter((p): p is PersonDoc => Boolean(p))
-    .map((p) => ({ personId: p.id, person: p }));
+    const participantIds: string[] = data.participantIds ?? [];
+    const participants = participantIds
+      .map((pId) => peopleMap.get(pId))
+      .filter((p): p is PersonDoc => Boolean(p))
+      .map((p) => ({ personId: p.id, person: p }));
 
-  const expensesSnapshot = await db
-    .collection("trips")
-    .doc(tripId)
-    .collection("expenses")
-    .get();
+    const expensesSnapshot = await db
+      .collection("trips")
+      .doc(tripId)
+      .collection("expenses")
+      .get();
 
-  const expenses = expensesSnapshot.docs.map((eDoc) => ({
-    id: eDoc.id,
-    amount: Number(eDoc.data().amount ?? 0),
-  }));
+    const expenses = expensesSnapshot.docs.map((eDoc) => ({
+      id: eDoc.id,
+      amount: Number(eDoc.data().amount ?? 0),
+    }));
 
-  return {
-    id: doc.id,
-    title: data.title ?? "",
-    destination: data.destination ?? "",
-    startDate: toDate(data.startDate),
-    endDate: toDate(data.endDate),
-    coverImagePath: data.coverImagePath ?? null,
-    notes: data.notes ?? null,
-    createdAt: data.createdAt ?? new Date().toISOString(),
-    updatedAt: data.updatedAt ?? new Date().toISOString(),
-    participantIds,
-    participants,
-    expenses,
-  };
+    return {
+      id: doc.id,
+      title: data.title ?? "",
+      destination: data.destination ?? "",
+      startDate: toDate(data.startDate),
+      endDate: toDate(data.endDate),
+      coverImagePath: data.coverImagePath ?? null,
+      notes: data.notes ?? null,
+      createdAt: data.createdAt ?? new Date().toISOString(),
+      updatedAt: data.updatedAt ?? new Date().toISOString(),
+      participantIds,
+      participants,
+      expenses,
+    };
+  } catch (err) {
+    console.error(`Error in getTripById(${tripId}):`, err);
+    return null;
+  }
 }
 
 export async function createTripDoc(data: {
@@ -283,47 +301,52 @@ export async function deleteTripDoc(tripId: string): Promise<void> {
 
 // --- EXPENSES ---
 export async function getTripExpenses(tripId: string): Promise<ExpenseDoc[]> {
-  const [peopleList, expensesSnap] = await Promise.all([
-    getPeople(),
-    db.collection("trips").doc(tripId).collection("expenses").get(),
-  ]);
+  try {
+    const [peopleList, expensesSnap] = await Promise.all([
+      getPeople(),
+      db.collection("trips").doc(tripId).collection("expenses").get(),
+    ]);
 
-  const peopleMap = new Map(peopleList.map((p) => [p.id, p]));
+    const peopleMap = new Map(peopleList.map((p) => [p.id, p]));
 
-  const expenses = expensesSnap.docs.map((doc) => {
-    const data = doc.data();
+    const expenses = expensesSnap.docs.map((doc) => {
+      const data = doc.data();
 
-    const rawPayments: { personId: string; paidAmount: number }[] =
-      data.payments ?? [];
-    const payments = rawPayments.map((p) => ({
-      personId: p.personId,
-      paidAmount: p.paidAmount,
-      person: peopleMap.get(p.personId)!,
-    })).filter((p) => Boolean(p.person));
+      const rawPayments: { personId: string; paidAmount: number }[] =
+        data.payments ?? [];
+      const payments = rawPayments.map((p) => ({
+        personId: p.personId,
+        paidAmount: p.paidAmount,
+        person: peopleMap.get(p.personId)!,
+      })).filter((p) => Boolean(p.person));
 
-    const rawShares: { personId: string; shareAmount: number }[] =
-      data.shares ?? [];
-    const shares = rawShares.map((s) => ({
-      personId: s.personId,
-      shareAmount: s.shareAmount,
-      person: peopleMap.get(s.personId)!,
-    })).filter((s) => Boolean(s.person));
+      const rawShares: { personId: string; shareAmount: number }[] =
+        data.shares ?? [];
+      const shares = rawShares.map((s) => ({
+        personId: s.personId,
+        shareAmount: s.shareAmount,
+        person: peopleMap.get(s.personId)!,
+      })).filter((s) => Boolean(s.person));
 
-    return {
-      id: doc.id,
-      tripId,
-      date: toDate(data.date),
-      description: data.description ?? "",
-      amount: Number(data.amount ?? 0),
-      currency: data.currency ?? "EUR",
-      category: data.category ?? "SONSTIGES",
-      createdAt: data.createdAt ?? new Date().toISOString(),
-      payments,
-      shares,
-    };
-  });
+      return {
+        id: doc.id,
+        tripId,
+        date: toDate(data.date),
+        description: data.description ?? "",
+        amount: Number(data.amount ?? 0),
+        currency: data.currency ?? "EUR",
+        category: data.category ?? "SONSTIGES",
+        createdAt: data.createdAt ?? new Date().toISOString(),
+        payments,
+        shares,
+      };
+    });
 
-  return expenses.sort((a, b) => b.date.getTime() - a.date.getTime());
+    return expenses.sort((a, b) => b.date.getTime() - a.date.getTime());
+  } catch (err) {
+    console.error(`Error in getTripExpenses(${tripId}):`, err);
+    return [];
+  }
 }
 
 export async function createExpenseDoc(
@@ -366,23 +389,28 @@ export async function deleteExpenseDoc(
 
 // --- PLAN DAYS ---
 export async function getTripPlanDays(tripId: string): Promise<PlanDayDoc[]> {
-  const snap = await db
-    .collection("trips")
-    .doc(tripId)
-    .collection("planDays")
-    .get();
+  try {
+    const snap = await db
+      .collection("trips")
+      .doc(tripId)
+      .collection("planDays")
+      .get();
 
-  return snap.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      tripId,
-      date: toDate(data.date),
-      accommodationName: data.accommodationName ?? null,
-      accommodationNote: data.accommodationNote ?? null,
-      activities: data.activities ?? null,
-    };
-  });
+    return snap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        tripId,
+        date: toDate(data.date),
+        accommodationName: data.accommodationName ?? null,
+        accommodationNote: data.accommodationNote ?? null,
+        activities: data.activities ?? null,
+      };
+    });
+  } catch (err) {
+    console.error(`Error in getTripPlanDays(${tripId}):`, err);
+    return [];
+  }
 }
 
 export async function savePlanDayDoc(
@@ -415,27 +443,32 @@ export async function savePlanDayDoc(
 
 // --- INFO ITEMS ---
 export async function getTripInfoItems(tripId: string): Promise<InfoItemDoc[]> {
-  const snap = await db
-    .collection("trips")
-    .doc(tripId)
-    .collection("infoItems")
-    .get();
+  try {
+    const snap = await db
+      .collection("trips")
+      .doc(tripId)
+      .collection("infoItems")
+      .get();
 
-  const items = snap.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      tripId,
-      category: data.category ?? "SONSTIGES",
-      title: data.title ?? "",
-      content: data.content ?? "",
-      createdAt: data.createdAt ?? new Date().toISOString(),
-    };
-  });
+    const items = snap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        tripId,
+        category: data.category ?? "SONSTIGES",
+        title: data.title ?? "",
+        content: data.content ?? "",
+        createdAt: data.createdAt ?? new Date().toISOString(),
+      };
+    });
 
-  return items.sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
+    return items.sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  } catch (err) {
+    console.error(`Error in getTripInfoItems(${tripId}):`, err);
+    return [];
+  }
 }
 
 export async function createInfoItemDoc(
