@@ -89,8 +89,8 @@ export async function getPeople(): Promise<PersonDoc[]> {
     const snapshot = await db.collection("people").orderBy("createdAt", "asc").get();
     if (snapshot.empty) {
       // Auto-Seed Standard-Personen falls noch keine existieren
-      const p1 = await createPerson("Lisa");
-      const p2 = await createPerson("Samuel");
+      const p1 = await createPerson("Samu");
+      const p2 = await createPerson("Luisa");
       return [p1, p2];
     }
 
@@ -106,8 +106,8 @@ export async function getPeople(): Promise<PersonDoc[]> {
   } catch (err) {
     console.error("Error in getPeople():", err);
     return [
-      { id: "p1", name: "Lisa", colorTag: "#c05a34", createdAt: new Date().toISOString() },
-      { id: "p2", name: "Samuel", colorTag: "#2f6f6a", createdAt: new Date().toISOString() },
+      { id: "p1", name: "Samu", colorTag: "#c05a34", createdAt: new Date().toISOString() },
+      { id: "p2", name: "Luisa", colorTag: "#2f6f6a", createdAt: new Date().toISOString() },
     ];
   }
 }
