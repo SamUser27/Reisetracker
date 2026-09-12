@@ -1,4 +1,13 @@
-import { ExpenseCategory, InfoCategory } from "@/generated/prisma/enums";
+export type ExpenseCategory =
+  | "SOUVENIRS"
+  | "KLEIDUNG"
+  | "ESSEN"
+  | "TRANSPORT"
+  | "UNTERKUNFT"
+  | "EINTRITTE"
+  | "SONSTIGES";
+
+export type InfoCategory = "GEPAECK" | "NOTFALL" | "DOKUMENTE" | "SONSTIGES";
 
 export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   SOUVENIRS: "Souvenirs",
