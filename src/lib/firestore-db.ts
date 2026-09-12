@@ -88,9 +88,18 @@ export async function getPeople(): Promise<PersonDoc[]> {
   try {
     const snapshot = await db.collection("people").orderBy("createdAt", "asc").get();
     if (snapshot.empty) {
-      // Auto-Seed Standard-Personen falls noch keine existieren
-      const p1 = await createPerson("Samu");
-      const p2 = await createPerson("Luisa");
+      // Direkter Batch-Seed ohne rekursiven getPeople-Aufruf
+      const p1Ref = db.collection("people").doc();
+      const p2Ref = db.collection("people").doc();
+      const now = new Date().toISOString();
+      const p1: PersonDoc = { id: p1Ref.id, name: "Samu", colorTag: pickPersonColor(0), createdAt: now };
+      const p2: PersonDoc = { id: p2Ref.id, name: "Luisa", colorTag: pickPersonColor(1), createdAt: now };
+
+      const batch = db.batch();
+      batch.set(p1Ref, p1);
+      batch.set(p2Ref, p2);
+      await batch.commit();
+
       return [p1, p2];
     }
 
