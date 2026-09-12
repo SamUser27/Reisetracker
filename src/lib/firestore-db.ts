@@ -86,7 +86,7 @@ function toDate(val: unknown): Date {
 // --- PEOPLE ---
 export async function getPeople(): Promise<PersonDoc[]> {
   try {
-    const snapshot = await db.collection("people").orderBy("createdAt", "asc").get();
+    const snapshot = await db.collection("people").get();
     if (snapshot.empty) {
       // Direkter Batch-Seed ohne rekursiven getPeople-Aufruf
       const p1Ref = db.collection("people").doc();
@@ -103,7 +103,7 @@ export async function getPeople(): Promise<PersonDoc[]> {
       return [p1, p2];
     }
 
-    return snapshot.docs.map((doc) => {
+    const people = snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -112,6 +112,8 @@ export async function getPeople(): Promise<PersonDoc[]> {
         createdAt: data.createdAt ?? new Date().toISOString(),
       };
     });
+
+    return people.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   } catch (err) {
     console.error("Error in getPeople():", err);
     return [
@@ -138,50 +140,53 @@ export async function createPerson(name: string): Promise<PersonDoc> {
 // --- TRIPS ---
 export async function getTrips(): Promise<TripDoc[]> {
   try {
-    const [peopleList, tripsSnapshot] = await Promise.all([
+    const [peopleList, tripsSnapshot, expensesSnapshot] = await Promise.all([
       getPeople(),
       db.collection("trips").get(),
+      db.collectionGroup("expenses").get(),
     ]);
 
     const peopleMap = new Map(peopleList.map((p) => [p.id, p]));
 
-    const trips = await Promise.all(
-      tripsSnapshot.docs.map(async (doc) => {
-        const data = doc.data();
-        const participantIds: string[] = data.participantIds ?? [];
-        const participants = participantIds
-          .map((pId) => peopleMap.get(pId))
-          .filter((p): p is PersonDoc => Boolean(p))
-          .map((p) => ({ personId: p.id, person: p }));
+    const expensesByTripId = new Map<string, { id: string; amount: number }[]>();
+    expensesSnapshot.docs.forEach((eDoc) => {
+      const data = eDoc.data();
+      const tripId = data.tripId || eDoc.ref.parent.parent?.id;
+      if (!tripId) return;
+      if (!expensesByTripId.has(tripId)) {
+        expensesByTripId.set(tripId, []);
+      }
+      expensesByTripId.get(tripId)!.push({
+        id: eDoc.id,
+        amount: Number(data.amount ?? 0),
+      });
+    });
 
-        // Fetch expenses minimal
-        const expensesSnapshot = await db
-          .collection("trips")
-          .doc(doc.id)
-          .collection("expenses")
-          .get();
+    const trips = tripsSnapshot.docs.map((doc) => {
+      const data = doc.data();
+      const participantIds: string[] = data.participantIds ?? [];
+      const participants = participantIds
+        .map((pId) => peopleMap.get(pId))
+        .filter((p): p is PersonDoc => Boolean(p))
+        .map((p) => ({ personId: p.id, person: p }));
 
-        const expenses = expensesSnapshot.docs.map((eDoc) => ({
-          id: eDoc.id,
-          amount: Number(eDoc.data().amount ?? 0),
-        }));
+      const expenses = expensesByTripId.get(doc.id) ?? [];
 
-        return {
-          id: doc.id,
-          title: data.title ?? "",
-          destination: data.destination ?? "",
-          startDate: toDate(data.startDate),
-          endDate: toDate(data.endDate),
-          coverImagePath: data.coverImagePath ?? null,
-          notes: data.notes ?? null,
-          createdAt: data.createdAt ?? new Date().toISOString(),
-          updatedAt: data.updatedAt ?? new Date().toISOString(),
-          participantIds,
-          participants,
-          expenses,
-        };
-      })
-    );
+      return {
+        id: doc.id,
+        title: data.title ?? "",
+        destination: data.destination ?? "",
+        startDate: toDate(data.startDate),
+        endDate: toDate(data.endDate),
+        coverImagePath: data.coverImagePath ?? null,
+        notes: data.notes ?? null,
+        createdAt: data.createdAt ?? new Date().toISOString(),
+        updatedAt: data.updatedAt ?? new Date().toISOString(),
+        participantIds,
+        participants,
+        expenses,
+      };
+    });
 
     return trips.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
   } catch (err) {

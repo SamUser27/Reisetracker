@@ -56,4 +56,11 @@ if (!getApps().length) {
   }
 }
 
-export const db = getFirestore();
+const firestoreDb = getFirestore();
+try {
+  firestoreDb.settings({ preferRest: true, ignoreUndefinedProperties: true });
+} catch {
+  // settings already initialized
+}
+
+export const db = firestoreDb;
